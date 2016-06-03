@@ -49,7 +49,7 @@ def do_find_command(search_dir,file_type):
             continue
         if fullPath in have_checked_path:
             continue
-        if (not fullPath.startswith("/")) and (not fullPath.startswith(".")):
+        if (not fullPath.startswith("/")) and (not fullPath.startswith(".") and (not fullPath.startswith("~")):
             continue
 
         prefixPath, fileName = os.path.split(fullPath)

@@ -1,20 +1,17 @@
 import os, sys
 import subprocess
-import shlex
-import shutil
-import time
 __author__ = 'ray'
 
 g_project_dir = "./"
 g_bitsPerSample = "8"
 
 def get_file_info(filePath):
-    image_command = "sips -g pixelWidth -g pixelHeight -g bitsPerSample {file_path}".format(file_path = filePath)
+    image_command = "sips -g pixelWidth -g pixelHeight -g bitsPerSample -g format {file_path}".format(file_path = filePath)
     s = subprocess.Popen(image_command,shell = True,stdout=subprocess.PIPE)
     result = s.communicate()[0]
     result = result.split()
-    if len(result) == 7:
-        return [result[2], result[4], result[6]]
+    if len(result) == 9:
+        return [result[2], result[4], result[6], result[8]]
     return []
 
 def check_file_size(info1x, info2x, info3x):
@@ -27,6 +24,16 @@ def check_file_bits(info):
     global g_bitsPerSample
     return info[2] == g_bitsPerSample
 
+def check_file_format(info, file_type):
+    real_type = info[3].lower()
+    if real_type == "jpeg" and (file_type.lower() == "jpg" or file_type.lower() == "jpeg"):
+        return True
+    if real_type == "png" and file_type.lower() == "png":
+        return True
+    if real_type == "gif" and file_type.lower() == "gif":
+        return True
+    return False
+
 def do_find_command(search_dir,file_type):
 
     if len(search_dir) == 0 or len(file_type) == 0:
@@ -37,6 +44,7 @@ def do_find_command(search_dir,file_type):
     need_add_file_list = list()
     size_not_correct_list = list()
     bits_not_correct_list = list()
+    format_not_correct_list = list()
 
     command = "find '{}' -name '*.{other}' 2>/dev/null".format(search_dir,other = file_type)
     s = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
@@ -49,7 +57,7 @@ def do_find_command(search_dir,file_type):
             continue
         if fullPath in have_checked_path:
             continue
-        if (not fullPath.startswith("/")) and (not fullPath.startswith(".") and (not fullPath.startswith("~")):
+        if not fullPath.startswith("/") and not fullPath.startswith(".") and not fullPath.startswith("~"):
             continue
 
         prefixPath, fileName = os.path.split(fullPath)
@@ -107,8 +115,14 @@ def do_find_command(search_dir,file_type):
                 bits_not_correct_list.append([filePath2x,info2x[2]])
             if not check_file_bits(info3x):
                 bits_not_correct_list.append([filePath3x,info3x[2]])
+            if not check_file_format(info1x, fileNameSuffix[1:]):
+                format_not_correct_list.append([filePath1x,info1x[3]])
+            if not check_file_format(info2x, fileNameSuffix[1:]):
+                format_not_correct_list.append([filePath2x,info2x[3]])
+            if not check_file_format(info3x, fileNameSuffix[1:]):
+                format_not_correct_list.append([filePath3x,info3x[3]])
 
-    return need_add_file_list, size_not_correct_list, bits_not_correct_list
+    return need_add_file_list, size_not_correct_list, bits_not_correct_list, format_not_correct_list
 
 
 def support_types():
@@ -138,16 +152,19 @@ def start_find_task():
     need_add_result_list = list()
     size_not_correct_list = list()
     bits_not_correct_list = list()
+    format_not_correct_list = list()
 
     for type in support_types():
         find_result = do_find_command(g_project_dir,type)
         need_add_result_list.extend(find_result[0])
         size_not_correct_list.extend(find_result[1])
         bits_not_correct_list.extend(find_result[2])
+        format_not_correct_list.extend(find_result[3])
 
     need_add_result_list.sort()
     size_not_correct_list.sort()
     bits_not_correct_list.sort()
+    format_not_correct_list.sort()
 
     print("#Lack images:\n")
     for image_name in need_add_result_list:
@@ -158,6 +175,10 @@ def start_find_task():
     for image_size_info in size_not_correct_list :
         print(image_size_info[0] + ", size1x:" + 'x'.join(image_size_info[1][:2]) + ", size2x:" + 'x'.join(image_size_info[2][:2]) + ", size3x:" + 'x'.join(image_size_info[3][:2]))
     print("\n-------------------------------------------------\n")
+
+    print("#Format not correct:\n")
+    for image_format_info in format_not_correct_list :
+        print(' is '.join(image_format_info))
 
     print("#Bits not correct:\n")
     for image_bits_info in bits_not_correct_list :
